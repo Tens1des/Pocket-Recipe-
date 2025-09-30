@@ -8,14 +8,30 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var store = DataStore()
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationView {
+            VStack(spacing: 16) {
+                Text("Pocket Recipe Box")
+                    .font(.title)
+                Text("Recipes: \(store.db.recipes.count)")
+                Text("Categories: \(store.db.categories.count)")
+                Button("Add Sample Recipe") { addSample() }
+            }
+            .padding()
+            .navigationTitle("Home")
         }
-        .padding()
+    }
+
+    private func addSample() {
+        let sample = Recipe(
+            title: "Creamy Pasta",
+            ingredients: [Ingredient(name: "Pasta", quantity: "200g"), Ingredient(name: "Cream", quantity: "100ml")],
+            steps: [RecipeStep(order: 1, text: "Boil pasta"), RecipeStep(order: 2, text: "Add cream")],
+            difficulty: .easy,
+            totalMinutes: 20
+        )
+        store.addRecipe(sample)
     }
 }
 

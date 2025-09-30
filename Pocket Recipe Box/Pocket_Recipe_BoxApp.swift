@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct Pocket_Recipe_BoxApp: App {
+    @StateObject private var store = DataStore()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environmentObject(store)
         }
     }
 }
