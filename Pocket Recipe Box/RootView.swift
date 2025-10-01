@@ -48,11 +48,18 @@ struct RecipesListView: View {
         NavigationView {
             ZStack(alignment: .bottomTrailing) {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         header
                         searchBar
                         categoryTabs
-                        recipeCards
+                        // Compact rows instead of big cards
+                        LazyVStack(spacing: 10) {
+                            ForEach(filtered) { recipe in
+                                NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                                    CompactRecipeRow(recipe: recipe, categoryName: store.db.categories.first(where: { $0.id == recipe.categoryId })?.name)
+                                }.buttonStyle(PlainButtonStyle())
+                            }
+                        }
                     }
                     .padding(.horizontal)
                 }
@@ -70,9 +77,20 @@ struct RecipesListView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack { Text("My Recipes").font(.largeTitle.bold()); Spacer(); Image(systemName: "person.circle.fill").font(.title2).foregroundColor(.purple) }
+            HStack {
+                Text("My Recipes").font(.largeTitle.bold())
+                Spacer()
+                Image(systemName: avatarSymbol(for: store.db.profile.avatarIndex))
+                    .font(.title2)
+                    .foregroundColor(.purple)
+            }
             Text("\(store.db.recipes.count) delicious meals").foregroundColor(.secondary)
         }
+    }
+
+    private func avatarSymbol(for index: Int) -> String {
+        let icons = ["person.circle.fill","fork.knife.circle.fill","flame.circle.fill","leaf.circle.fill","cup.and.saucer.fill","camera.circle.fill","cart.circle.fill","book.circle.fill","star.circle.fill"]
+        return icons.indices.contains(index) ? icons[index] : icons[0]
     }
 
     private var searchBar: some View {
@@ -102,17 +120,6 @@ struct RecipesListView: View {
         }
     }
 
-    private var recipeCards: some View {
-        LazyVStack(spacing: 12) {
-            ForEach(filtered) { recipe in
-                NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
-                    RecipeCardView(recipe: recipe)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-    }
-
     private var floatingAddButton: some View {
         Button(action: { showingEditor = true }) {
             Image(systemName: "plus").font(.title2.bold()).foregroundColor(.white)
@@ -123,6 +130,44 @@ struct RecipesListView: View {
         }
         .padding(.trailing).padding(.bottom, 8)
         .sheet(isPresented: $showingEditor) { RecipeEditorView() }
+    }
+}
+
+struct CompactRecipeRow: View {
+    let recipe: Recipe
+    let categoryName: String?
+
+    private func difficultyColor(_ d: RecipeDifficulty) -> Color {
+        switch d { case .easy: return .green; case .medium: return .orange; case .hard: return .red }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Thumbnail
+            if let fn = recipe.imageFilename, let img = ImageManager.shared.loadImage(named: fn) {
+                Image(uiImage: img).resizable().scaledToFill().frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 10))
+            } else {
+                ZStack { RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.2)); Image(systemName: "photo") }.frame(width: 56, height: 56)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(recipe.title).font(.headline).lineLimit(1)
+                Text(recipe.notes ?? "").font(.caption).foregroundColor(.secondary).lineLimit(1)
+                HStack(spacing: 14) {
+                    if let m = recipe.totalMinutes {
+                        HStack(spacing: 4) { Image(systemName: "clock").foregroundColor(.blue); Text("\(m)"); Text("min").foregroundColor(.secondary) }.font(.caption)
+                    }
+                    HStack(spacing: 4) { Image(systemName: "flame.fill").foregroundColor(difficultyColor(recipe.difficulty)); Text(recipe.difficulty.rawValue.capitalized) }.font(.caption)
+                    if let categoryName { HStack(spacing: 4) { Image(systemName: "tag.fill").foregroundColor(.purple); Text(categoryName) }.font(.caption) }
+                }
+            }
+            Spacer()
+            if recipe.favorite { Image(systemName: "star.fill").foregroundColor(.yellow) }
+        }
+        .padding(10)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
 
@@ -1960,11 +2005,11 @@ struct SettingsView: View {
                 // Avatar
                 ZStack {
                     Circle()
-                        .fill(Color.purple)
+                        .fill(Color.purple.opacity(0.15))
                         .frame(width: 60, height: 60)
-                    Text(String(store.db.profile.nickname.prefix(2)).uppercased())
-                        .font(.title2.bold())
-                        .foregroundColor(.white)
+                    Image(systemName: avatarSymbol(for: store.db.profile.avatarIndex))
+                        .foregroundColor(.purple)
+                        .font(.title2)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -1980,16 +2025,19 @@ struct SettingsView: View {
                 
                 Spacer()
                 
-                Button("Edit") {
-                    showingProfileEdit = true
-                }
-                .foregroundColor(.purple)
+                Button("Edit") { showingProfileEdit = true }
+                    .foregroundColor(.purple)
             }
         }
         .padding()
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 2)
+    }
+
+    private func avatarSymbol(for index: Int) -> String {
+        let icons = ["person.circle.fill","fork.knife.circle.fill","flame.circle.fill","leaf.circle.fill","cup.and.saucer.fill","camera.circle.fill","cart.circle.fill","book.circle.fill","star.circle.fill"]
+        return icons.indices.contains(index) ? icons[index] : icons[0]
     }
     
     private var appPreferencesSection: some View {
@@ -2110,54 +2158,59 @@ struct ProfileEditView: View {
     @EnvironmentObject var store: DataStore
     @Environment(\.dismiss) private var dismiss
     @State private var nickname: String = ""
+    @State private var selectedAvatar: Int = 0
+
+    private let avatarIcons = ["person.circle.fill","fork.knife.circle.fill","flame.circle.fill","leaf.circle.fill","cup.and.saucer.fill","camera.circle.fill","cart.circle.fill","book.circle.fill","star.circle.fill"]
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
-                // Avatar section
-                VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.purple)
-                            .frame(width: 80, height: 80)
-                        Text(String(nickname.prefix(2)).uppercased())
-                            .font(.title.bold())
-                            .foregroundColor(.white)
-                    }
-                    
-                    Text("Tap to change avatar")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
-                // Nickname section
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Nickname")
-                        .font(.headline)
-                    
-                    TextField("Enter your nickname", text: $nickname)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .onAppear {
-                            nickname = store.db.profile.nickname
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Avatar grid
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Choose Avatar").font(.headline)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+                            ForEach(avatarIcons.indices, id: \.self) { idx in
+                                Button(action: { selectedAvatar = idx }) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(selectedAvatar == idx ? Color.purple.opacity(0.15) : Color.gray.opacity(0.08))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(selectedAvatar == idx ? Color.purple : Color.clear, lineWidth: 2)
+                                            )
+                                        Image(systemName: avatarIcons[idx]).font(.title).foregroundColor(.purple)
+                                    }
+                                    .frame(height: 64)
+                                }
+                            }
                         }
+                    }
+
+                    // Nickname section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Nickname").font(.headline)
+                        TextField("Enter your nickname", text: $nickname)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
                 }
-                
-                Spacer()
+                .padding()
+                .onAppear {
+                    nickname = store.db.profile.nickname
+                    selectedAvatar = store.db.profile.avatarIndex
+                }
             }
-            .padding()
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
+                ToolbarItem(placement: .navigationBarLeading) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         store.db.profile.nickname = nickname
+                        store.db.profile.avatarIndex = selectedAvatar
                         store.save()
                         dismiss()
-                    }
-                    .disabled(nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }.disabled(nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
