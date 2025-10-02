@@ -17,8 +17,6 @@ struct RootView: View {
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
-        .preferredColorScheme(store.db.settings.theme == .dark ? .dark : 
-                            store.db.settings.theme == .light ? .light : nil)
     }
 }
 
@@ -2046,20 +2044,6 @@ struct SettingsView: View {
                 .font(.headline.bold())
             
             VStack(spacing: 0) {
-                SettingRow(
-                    icon: "moon.fill",
-                    iconColor: .purple,
-                    title: "Dark Mode",
-                    subtitle: "Switch to dark theme",
-                    type: .toggle(Binding(
-                        get: { store.db.settings.theme == .dark },
-                        set: { isOn in
-                            store.db.settings.theme = isOn ? .dark : .light
-                            store.save()
-                        }
-                    ))
-                )
-                
                 SettingRow(
                     icon: "globe",
                     iconColor: .blue,
